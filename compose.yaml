@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-istream}
+      POSTGRES_USER: ${POSTGRES_USER:-istream}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-istream}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  generator:
+    build: ./workloads/generator
+    profiles: [tools]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-istream}:${POSTGRES_PASSWORD:-istream}@postgres:5432/${POSTGRES_DB:-istream}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./workloads/scenarios:/scenarios
+
+  istream:
+    build: ./implementations/istream
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-istream}:${POSTGRES_PASSWORD:-istream}@postgres:5432/${POSTGRES_DB:-istream}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  test-client:
+    build: ./clients/test_client
+    profiles: [ tools ]
+    environment:
+      ISTREAM_URL: http://istream:8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-istream}:${POSTGRES_PASSWORD:-istream}@postgres:5432/${POSTGRES_DB:-istream}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      istream:
+        condition: service_started
+
+  multi-client:
+    build: ./clients/test_client
+    profiles: [ tools ]
+    entrypoint: [ "python", "multi.py" ]
+    environment:
+      ISTREAM_URL: http://istream:8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-istream}:${POSTGRES_PASSWORD:-istream}@postgres:5432/${POSTGRES_DB:-istream}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      istream:
+        condition: service_started
+
+  postgres-test:
+    image: postgres:17
+    profiles: [ test ]
+    environment:
+      POSTGRES_DB: istream_test
+      POSTGRES_USER: istream
+      POSTGRES_PASSWORD: istream
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U istream -d istream_test" ]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  istream-test:
+    build: ./implementations/istream
+    profiles: [ test ]
+    environment:
+      DATABASE_URL: postgresql://istream:istream@postgres-test:5432/istream_test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+
+  integration-tests:
+    build:
+      context: .
+      dockerfile: tests/integration/Dockerfile
+    profiles: [ test ]
+    environment:
+      ISTREAM_URL: http://istream-test:8080
+      DATABASE_URL: postgresql://istream:istream@postgres-test:5432/istream_test
+    depends_on:
+      istream-test:
+        condition: service_started
+
+volumes:
+  postgres_data:
