@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: benchmark
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U benchmark -d benchmark]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  pilot:
+    build:
+      context: ..
+      dockerfile: benchmarks/Dockerfile
+    environment:
+      ADMIN_DSN: postgresql://benchmark:benchmark@db:5432/benchmark
+      CODE_REV: ${CODE_REV:-working-tree}
+    volumes:
+      - ${BENCH_OUTPUT:?Set BENCH_OUTPUT to a directory outside the repository}:/results
+    depends_on:
+      db:
+        condition: service_healthy
