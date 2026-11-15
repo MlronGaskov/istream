@@ -69,6 +69,16 @@ class TestClient:
             f"version={self.fragment.applied_version}"
         )
 
+    async def reset_context(self):
+        old = self.fragment
+        first = await self.post("/fetch/first", {
+            "query": self.query, "n": 1,
+        })
+        snapshot = await self.post("/fetch/range", {
+            "contextId": first["contextId"], "actualRange": old.bounds,
+        })
+        self.fragment = Fragment(snapshot)
+
     async def recover(self):
         old = self.fragment
 
@@ -86,7 +96,7 @@ class TestClient:
             )
 
         except ContextExpired:
-            await self.bootstrap()
+            await self.reset_context()
 
     async def watch_once(self, target=None):
         fragment = self.fragment
@@ -169,19 +179,19 @@ class TestClient:
                 ):
                     result = await self.watch_once(target)
 
-                if result == "history-expired":
-                    await self.recover()
+                    if result == "history-expired":
+                        await self.recover()
 
-                elif result == "context-expired":
-                    await self.bootstrap()
+                    elif result == "context-expired":
+                        await self.reset_context()
 
-                elif result == "target-reached":
-                    return
+                    elif result == "target-reached":
+                        return
 
             except TimeoutError:
                 break
 
-            except (aiohttp.ClientError, OSError) as error:
+            except (ContextExpired, aiohttp.ClientError, OSError) as error:
                 print(f"reconnect: {error}")
 
             await asyncio.sleep(

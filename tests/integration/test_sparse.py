@@ -104,6 +104,14 @@ def test_expired_history_recovers_only_one_fragment():
 
             preserved = client.fragments["f1"]
             expired = client.fragments["f2"]
+            refetched = []
+            original_refetch = client.refetch
+
+            async def tracked_refetch(name):
+                refetched.append(name)
+                await original_refetch(name)
+
+            client.refetch = tracked_refetch
 
             conn = await asyncpg.connect(DSN)
 
@@ -134,6 +142,7 @@ def test_expired_history_recovers_only_one_fragment():
                 names=["f2"],
             )
 
+            assert refetched == ["f2"]
             assert client.fragments["f1"] is preserved
             assert client.fragments["f2"] is not expired
 

@@ -228,7 +228,7 @@ class SparseClient:
                         ):
                             return
 
-            except (aiohttp.ClientError, OSError) as error:
+            except (ContextExpired, aiohttp.ClientError, OSError) as error:
                 print(f"{name}: reconnect: {error}")
 
             await asyncio.sleep(

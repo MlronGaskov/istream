@@ -11,6 +11,8 @@ COPY clients/test_client/*.py /app/test_client/
 COPY workloads/generator/main.py /app/generator.py
 COPY tests/integration/ /app/tests/integration/
 
-ENV PYTHONPATH=/app/test_client
+COPY implementations/istream/istream/ /app/istream/
+
+ENV PYTHONPATH=/app/test_client:/app
 
 CMD ["pytest", "-q", "tests/integration"]
