@@ -125,6 +125,8 @@ docker compose --profile test run --rm --build integration-tests
 
 [Проверка прототипа: среда, результаты и стоимость версионирования](docs/validation.md).
 
+[Сравнительный HTTP-пилот: ISTREAM, polling и keyset/refetch](docs/benchmark.md).
+
 ## Ограничения прототипа
 
 `items.id` неизменяем: UPDATE, действительно меняющий id, отклоняется триггером.
