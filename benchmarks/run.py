@@ -288,7 +288,7 @@ async def run_one(admin, mode, rate, repeat):
             result['write_tps'] = sum(p['transactions'] for p in active)/sum(p['seconds'] for p in active)
             result['write_mean_ms'] = statistics.mean(s['latency_ms'] for s in samples)
             result['write_p95_ms'] = percentile([s['latency_ms'] for s in samples],.95)
-            result['wal_bytes'] = await observer.fetchval('SELECT pg_wal_lsn_diff(pg_current_wal_insert_lsn(),$1::pg_lsn)::bigint',wal_start)
+            result['wal_bytes'] = await observer.fetchval('SELECT pg_wal_lsn_diff(pg_current_wal_insert_lsn(),$1::text::pg_lsn)::bigint',wal_start)
             usage = resource.getrusage(resource.RUSAGE_SELF)
             result['harness_cpu_s'] = usage.ru_utime+usage.ru_stime-cpu_start.ru_utime-cpu_start.ru_stime
             result['server'] = server_resources(process.pid)
