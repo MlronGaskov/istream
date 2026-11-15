@@ -18,15 +18,24 @@ QUERY = Query.parse(None)
 
 
 async def rows(conn, bounds, last=None, limit=None):
+    # Keep score bounds indexable even after PostgreSQL switches to a generic
+    # prepared plan. Nullable OR guards would let repeated small-range reads
+    # degrade to full-table scans, an avoidable handicap for both baselines.
+    clauses, args = ['active'], []
+    for key, direction, tie in ((bounds.lower, '<=', '>='),
+                                (bounds.upper, '>=', '<'), (last, '<=', '>')):
+        if key is None:
+            continue
+        offset = len(args)+1
+        args.extend(key)
+        strict = '<' if direction == '<=' else '>'
+        clauses.append(f'(score {direction} ${offset} AND '
+                       f'(score {strict} ${offset} OR id {tie} ${offset+1}))')
+    args.append(limit)
     return await conn.fetch(
-        """SELECT id,name,score FROM items WHERE active
-        AND ($1::int IS NULL OR score<$1 OR (score=$1 AND id>=$2))
-        AND ($3::int IS NULL OR score>$3 OR (score=$3 AND id<$4))
-        AND ($5::int IS NULL OR score<$5 OR (score=$5 AND id>$6))
-        ORDER BY score DESC,id ASC LIMIT $7""",
-        *(bounds.lower or (None, None)), *(bounds.upper or (None, None)),
-        *(last or (None, None)), limit,
-    )
+        'SELECT id,name,score FROM items WHERE '+ ' AND '.join(clauses)
+        + f' ORDER BY score DESC,id ASC LIMIT ${len(args)}', *args)
+
 
 
 async def full(request):
